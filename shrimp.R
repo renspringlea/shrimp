@@ -5,9 +5,6 @@
 #I apologise in advance for downstairs
 # https://i.redd.it/4dnvvjeuq0541.jpg
 
-#Set working directory
-#setwd("~/Nextcloud2/AA/Shrimp FAO")
-
 #Load libraries for graphing
 library(ggplot2)
 library(gridExtra)
@@ -18,8 +15,10 @@ theme_set(theme_bw())
 codes <- read.csv("FAO/CL_FI_SPECIES_GROUPS.csv") #FAO species codes
 countries <- read.csv("FAO/CL_FI_COUNTRY_GROUPS.csv") #FAO country codes
 fao <- read.csv("FAO/Capture_Quantity.csv") #FAO capture data
+trade <- read.csv("trade_partners_quantity.csv") #FAO export data
 
-#Note that I've already added to the Rethink spreadsheet to manually assign clades
+#Note that I've already added a column to the Rethink spreadsheet to manually assign clades
+#to each species/statistical group of shrimp
 rp <- read.csv("2020 - Shrimp captured from the wild - 2020 Shrimps captured from the wild.csv") #Rethink Priorities data on individuals
 
 #Remove the columns from the Rethink data we won't use
@@ -28,7 +27,7 @@ rp <- rp[c(1:92),]
 names(rp) <- c("Environment","Species","GEMW_g_Lower","GEMW_g_Upper","Clade")
 
 #Manually change a few names in the data to make them match FAO data
-#These are basically where FAO and Rethink are using different synonyms for species names
+#These are mostly where FAO and Rethink are using different synonyms for species names
 rp[which(rp$Species=="Exopalaemon modestus (Palaemon modestus)"),"Species"] <- 
   "Exopalaemon modestus"
 rp[which(rp$Species=="Trachypenaeus curvirostris"),"Species"] <- 
@@ -48,9 +47,12 @@ codes[which(codes$Scientific_Name=="Palaemonidae"),"Scientific_Name"] <-
   c("Palaemonidae_Freshwater","Palaemonidae_Saltwater")
 
 #Calculate midpoint weights from Rethink's upper and lower
+#Note that we don't actually use this midpoint in our analysis - it's purely
+#illustrative. The midpoints we do report are midpoints of the estimated numbers caught,
+#not midpoints of the weight ranges.
 rp$GEMW_g_Midpoint <- rowMeans(rp[,c("GEMW_g_Lower","GEMW_g_Upper")])
 
-#Specify which groups of animals we care about (shrimpies)
+#Specify which groups of animals we care about (shrimp)
 groups <- c("Shrimps, prawns", "Freshwater crustaceans")
 codes.sp <- codes[which(codes$ISSCAAP_Group_En %in% groups),]
 
@@ -145,91 +147,89 @@ agg1$Individuals_Upper <- aggregate(Individuals_Upper~Clade,FUN=sum,data=fao.sp.
 g_agg1 <- ggplot(aes(x=Clade,y=Individuals_Midpoint,colour=Clade),data=agg1) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper,colour=Clade),width=0.5) +
-  scale_y_continuous(trans='log10') +
-  labs(title="Wild shrimp caught, by clade",subtitle="Note: vertical axis uses a logarithmic scale") +
+  scale_y_continuous(trans='log10', limits=c(1e10,1e14)) +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),
-        legend.position = "none")
+        legend.position = "none") +
+  coord_flip()
 g_agg1
-#ggsave("Graphs/g_agg1.png",g_agg1,width=6,height=5)
+ggsave("Graphs/g_agg1.png",g_agg1,width=5,height=4)
 
 #catch ~ continent
 agg2 <- aggregate(Individuals_Midpoint~Continent_Group_En,FUN=sum,data=fao.sp.2020)
 agg2$Individuals_Lower <- aggregate(Individuals_Lower~Continent_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Lower
 agg2$Individuals_Upper <- aggregate(Individuals_Upper~Continent_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Upper
-g_agg2 <- ggplot(aes(x=reorder(Continent_Group_En,-Individuals_Midpoint),y=Individuals_Midpoint),data=agg2) +
+g_agg2 <- ggplot(aes(x=reorder(Continent_Group_En,Individuals_Midpoint),y=Individuals_Midpoint),data=agg2) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper),width=0.5) +
-  scale_y_continuous(trans='log10') +
+  scale_y_continuous(trans='log10', limits=c(1e8,1e14),breaks=c(1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
   #facet_grid(rows=vars(Clade),scales="free") +
-  labs(title="Wild shrimp caught, by continent",subtitle="Note: vertical axis uses a logarithmic scale") +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
-  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5)) +
+  coord_flip()
 g_agg2
-#ggsave("Graphs/g_agg2.png",g_agg2,width=6,height=5)
+ggsave("Graphs/g_agg2.png",g_agg2,width=5,height=4)
 
 #catch ~ region
 agg3 <- aggregate(Individuals_Midpoint~GeoRegion_Group_En,FUN=sum,data=fao.sp.2020)
 agg3$Individuals_Lower <- aggregate(Individuals_Lower~GeoRegion_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Lower
 agg3$Individuals_Upper <- aggregate(Individuals_Upper~GeoRegion_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Upper
-g_agg3 <- ggplot(aes(x=reorder(GeoRegion_Group_En,-Individuals_Midpoint),y=Individuals_Midpoint),data=agg3) +
+g_agg3 <- ggplot(aes(x=reorder(GeoRegion_Group_En,Individuals_Midpoint),y=Individuals_Midpoint),data=agg3) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper),width=0.5) +
-  scale_y_continuous(trans='log10') +
+  scale_y_continuous(trans='log10', limits=c(1e6,1e14), breaks=c(1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
   #facet_grid(rows=vars(Clade),scales="free") +
-  labs(title="Wild shrimp caught, by region",subtitle="Note: vertical axis uses a logarithmic scale") +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
-  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5)) +
+  coord_flip()
 g_agg3
-#ggsave("Graphs/g_agg3.png",g_agg3,width=6,height=5)
+ggsave("Graphs/g_agg3.png",g_agg3,width=5,height=8)
 
 #catch ~ country (bar graph)
 agg4 <- aggregate(Individuals_Midpoint~country,FUN=sum,data=fao.sp.2020)
 agg4$Individuals_Lower <- aggregate(Individuals_Lower~country,FUN=sum,data=fao.sp.2020)$Individuals_Lower
 agg4$Individuals_Upper <- aggregate(Individuals_Upper~country,FUN=sum,data=fao.sp.2020)$Individuals_Upper
-g_agg4 <- ggplot(aes(x=reorder(country,-Individuals_Midpoint),y=Individuals_Midpoint),data=agg4) +
+g_agg4 <- ggplot(aes(x=reorder(country,Individuals_Midpoint),y=Individuals_Midpoint),data=agg4) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper),width=0.5) +
-  scale_y_continuous(trans='log10') +
+  scale_y_continuous(trans='log10', limits=c(1e4,1e14), breaks=c(1e4,1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
   #facet_grid(rows=vars(Clade),scales="free") +
-  labs(title="Wild shrimp caught, by country",subtitle="Note: vertical axis uses a logarithmic scale") +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=8))
+        axis.text.y = element_text(size=8)) +
+  coord_flip()
 g_agg4
-#ggsave("Graphs/g_agg4.png",g_agg4,width=12,height=7)
+ggsave("Graphs/g_agg4.png",g_agg4,width=6,height=10)
 
 #catch ~ continent + clade
 agg5 <- aggregate(Individuals_Midpoint~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2020)
 agg5$Individuals_Lower <- aggregate(Individuals_Lower~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Lower
 agg5$Individuals_Upper <- aggregate(Individuals_Upper~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Upper
-g_agg5 <- ggplot(aes(x=reorder(Continent_Group_En,-Individuals_Midpoint),y=Individuals_Midpoint,colour=Clade),data=agg5) +
+g_agg5 <- ggplot(aes(x=reorder(Continent_Group_En,Individuals_Midpoint),y=Individuals_Midpoint,colour=Clade),data=agg5) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper,colour=Clade),width=0.5) +
-  scale_y_continuous(trans='log10') +
-  facet_grid(rows=vars(Clade),scales="free") +
-  labs(title="Wild shrimp caught, by continent and clade",subtitle="Note: vertical axis uses a logarithmic scale and varies between plots") +
+  scale_y_continuous(trans='log10', limits=c(1e5,1e14), breaks=c(1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
+  facet_grid(rows=vars(Clade)) +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
-  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5)) +
+  coord_flip()
 g_agg5
-#ggsave("Graphs/g_agg5.png",g_agg5,width=6,height=5)
+ggsave("Graphs/g_agg5.png",g_agg5,width=6,height=6)
 
 #catch ~ country + clade
 agg6 <- aggregate(Individuals_Midpoint~country+Clade,FUN=sum,data=fao.sp.2020)
 agg6$Individuals_Lower <- aggregate(Individuals_Lower~country+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Lower
 agg6$Individuals_Upper <- aggregate(Individuals_Upper~country+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Upper
-g_agg6 <- ggplot(aes(x=reorder(country,-Individuals_Midpoint),y=Individuals_Midpoint,colour=Clade),data=agg6) +
+g_agg6 <- ggplot(aes(x=reorder(country,Individuals_Midpoint),y=Individuals_Midpoint,colour=Clade),data=agg6) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper,colour=Clade),width=0.5) +
   scale_y_continuous(trans='log10') +
-  facet_grid(rows=vars(Clade),scales="free") +
-  labs(title="Wild shrimp caught, by country and clade",subtitle="Note: vertical axis uses a logarithmic scale and varies between plots") +
-  xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
+  facet_grid(rows=vars(Clade),scales="free") + xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size=8))
+        axis.text.y = element_text(size=8)) +
+  coord_flip()
 g_agg6
-#ggsave("Graphs/g_agg6.png",g_agg6,width=12,height=7)
+ggsave("Graphs/g_agg6.png",g_agg6,width=6,height=14)
 
 #catch ~ country (map)
 library(maps)
@@ -313,7 +313,7 @@ g_map_all <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group
   labs(title="Wild shrimp caught - all species",subtitle="Note: colour scale uses a logarithmic scale") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
 g_map_all
-#ggsave("Graphs/g_map_all.png",g_map_all,width=10,height=8)
+ggsave("Graphs/g_map_all.png",g_map_all,width=10,height=8)
 
 g_map_caridean <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + 
   coord_fixed(1.3) +
@@ -322,7 +322,7 @@ g_map_caridean <- ggplot(data = world, mapping = aes(x = long, y = lat, group = 
   labs(title="Wild shrimp caught - caridean species only",subtitle="Note: colour scale uses a logarithmic scale") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
 g_map_caridean
-#ggsave("Graphs/g_map_caridean.png",g_map_caridean,width=10,height=8)
+ggsave("Graphs/g_map_caridean.png",g_map_caridean,width=10,height=8)
 
 g_map_penaeid <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + 
   coord_fixed(1.3) +
@@ -331,19 +331,19 @@ g_map_penaeid <- ggplot(data = world, mapping = aes(x = long, y = lat, group = g
   labs(title="Wild shrimp caught - penaeid species only",subtitle="Note: colour scale uses a logarithmic scale") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
 g_map_penaeid
-#ggsave("Graphs/g_map_penaeid.png",g_map_penaeid,width=10,height=8)
+ggsave("Graphs/g_map_penaeid.png",g_map_penaeid,width=10,height=8)
 
 g_map_sergestid <- ggplot(data = world, mapping = aes(x = long, y = lat, group = group)) + 
   coord_fixed(1.3) +
   geom_polygon(aes(fill = Individuals_Midpoint_Sergestid)) +
   scale_fill_distiller(palette ="GnBu", direction = 1, trans = "log10") +
-  labs(title="Wild shrimp caught - sergestied species only",subtitle="Note: colour scale uses a logarithmic scale") +
+  labs(title="Wild shrimp caught - sergestid species only",subtitle="Note: colour scale uses a logarithmic scale") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5))
 g_map_sergestid
-#ggsave("Graphs/g_map_sergestid.png",g_map_sergestid,width=10,height=8)
+ggsave("Graphs/g_map_sergestid.png",g_map_sergestid,width=10,height=8)
 
-#Country sections
-#For each of the top 25 countries:
+#Country-by-country tables
+#For each country:
 #Individuals total; percent of global catch; by clade
 #Weight total; percent of global catch; by clade
 #Species caught by individuals and weight (and percent of catch for that country)
@@ -357,7 +357,6 @@ global.individuals.caridean <- sum(agg6[which(agg6$Clade=="Caridean"),]$Individu
 global.weight <- sum(agg7$VALUE)
 
 priority.countries <- agg4[order(-agg4$Individuals_Midpoint),]
-#priority.countries <- priority.countries[c(1:25),]
 
 for (i in c(1:nrow(priority.countries))){
 country.tmp <- priority.countries[i,"country"]
@@ -452,5 +451,81 @@ gtsave(swanky_table, filename = filename1)
 }
 
 
+
+#########################
+### Overarching table ###
+#########################
+
+overarching.table.countries <- agg4[order(-agg4$Individuals_Midpoint),]
+
+overarching.table.countries[,c(2,3,4)] <- signif(overarching.table.countries[,c(2,3,4)],3)
+overarching.table.countries$Catch_by_Number <- paste(overarching.table.countries$Individuals_Midpoint,
+                                           " (",
+                                           overarching.table.countries$Individuals_Lower,
+                                           ",",
+                                           overarching.table.countries$Individuals_Upper,
+                                           ")",sep="")
+
+overarching.table.countries$Catch_by_Weight <- NA
+
+for (i in c(1:nrow(overarching.table.countries))){
+  country.tmp <- overarching.table.countries[i,"country"]
+  overarching.table.countries[i,"Catch_by_Weight"] <- agg7[which(agg7$country==country.tmp),"VALUE"]
+}
+
+overarching.table.countries$Individuals_Percent <- paste(round(100*overarching.table.countries$Individuals_Midpoint/
+                                                   sum(overarching.table.countries$Individuals_Midpoint), 2),
+                                                   "%",sep=" ")
+overarching.table.countries$Weight_Percent <- paste(round(100*overarching.table.countries$Catch_by_Weight/
+                                                           sum(overarching.table.countries$Catch_by_Weight), 2),
+                                                    "%",sep=" ")
+overarching.table.countries$Catch_by_Weight <- format(round(overarching.table.countries$Catch_by_Weight, digits=0),
+                                                      big.mark = ",", scientific=FALSE)
+
+
+overarching.table <- overarching.table.countries[c(1:25),c("country_match",
+                                                           "Catch_by_Weight","Weight_Percent",
+                                                           "Catch_by_Number","Individuals_Percent"
+                                                    )]
+names(overarching.table) <- c("Country","Catch by Weight (t)","Weight (Percent of World)",
+                              "Catch by Number","Number (Percent of World)")
+
+
+overarching.table.gt <- gt(overarching.table)
+overarching.table.gt <- tab_style(overarching.table.gt, style=cell_text(weight = "bold"),
+                          locations = list(
+                            cells_column_labels()))
+overarching.table.gt <- cols_align(overarching.table.gt, align = "center", columns = c(2,3,4,5))
+
+gtsave(overarching.table.gt, filename = "overarching_table.html")
+
+
+##################
+### Trade data ###
+##################
+
+trade.agg <- aggregate(X2021 ~ Reporting.country.Name.En, FUN = sum, data = trade)
+trade.agg.bycountry <- aggregate(X2021 ~ Partner.country.Name.En + Reporting.country.Name.En, FUN = sum, data = trade)
+trade.agg.bycountry$X2021_percent <- NA
+
+trade.countries <- unique(trade$Reporting.country.Name.En)
+
+for (i in c(1:length(trade.countries))){
+  country.tmp <- trade.countries[i]
+  trade.agg.bycountry.tmp <- trade.agg.bycountry[which(trade.agg.bycountry$Reporting.country.Name.En==country.tmp),]
+  
+  sum.tmp <- sum(trade.agg.bycountry.tmp$X2021)
+  trade.agg.bycountry.tmp$X2021_percent <- round(100*trade.agg.bycountry.tmp$X2021/sum.tmp,1)
+  
+  trade.agg.bycountry[which(trade.agg.bycountry$Reporting.country.Name.En==country.tmp),"X2021_percent"] <- trade.agg.bycountry.tmp$X2021_percent
+  
+}
+
+trade.agg.bycountry.order <- trade.agg.bycountry[
+  order(trade.agg.bycountry$Reporting.country.Name.En,-trade.agg.bycountry$X2021_percent),]
+
+
+write.csv(trade.agg.bycountry.order,"trade_aggregated_bycountry.csv")
+write.csv(trade.agg,"trade_aggregated.csv")
 
 

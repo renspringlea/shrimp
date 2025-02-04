@@ -1,9 +1,7 @@
-#Code written by Ren Springlea (Ryba), November 2023
+#Code written by Ren Ryba
 #Research Scientist at Animal Ask
 #Contact us at www.animalask.org
-
-#I apologise in advance for downstairs
-# https://i.redd.it/4dnvvjeuq0541.jpg
+#First written November 2023, updated October 2024
 
 #Load libraries for graphing
 library(ggplot2)
@@ -17,9 +15,10 @@ countries <- read.csv("FAO/CL_FI_COUNTRY_GROUPS.csv") #FAO country codes
 fao <- read.csv("FAO/Capture_Quantity.csv") #FAO capture data
 trade <- read.csv("trade_partners_quantity.csv") #FAO export data
 
+#Rethink Priorities data on individuals
 #Note that I've already added a column to the Rethink spreadsheet to manually assign clades
 #to each species/statistical group of shrimp
-rp <- read.csv("2020 - Shrimp captured from the wild - 2020 Shrimps captured from the wild.csv") #Rethink Priorities data on individuals
+rp <- read.csv("2020 - Shrimp captured from the wild - 2020 Shrimps captured from the wild.csv") 
 
 #Remove the columns from the Rethink data we won't use
 rp <- rp[,c(1,2,7,8,14)]
@@ -48,106 +47,96 @@ codes[which(codes$Scientific_Name=="Palaemonidae"),"Scientific_Name"] <-
 
 #Calculate midpoint weights from Rethink's upper and lower
 #Note that we don't actually use this midpoint in our analysis - it's purely
-#illustrative. The midpoints we do report are midpoints of the estimated numbers caught,
+#illustrative. The midpoints we do report in the publication are midpoints of the estimated numbers caught,
 #not midpoints of the weight ranges.
 rp$GEMW_g_Midpoint <- rowMeans(rp[,c("GEMW_g_Lower","GEMW_g_Upper")])
 
 #Specify which groups of animals we care about (shrimp)
 groups <- c("Shrimps, prawns", "Freshwater crustaceans")
-codes.sp <- codes[which(codes$ISSCAAP_Group_En %in% groups),]
+codes.sp <- subset(codes, ISSCAAP_Group_En %in% groups)
 
 #Excluding non-shrimp crustaceans (e.g. crayfish)
-codes.sp <- codes.sp[-which(codes.sp$CPC_Class_En=="Other crustaceans, live, fresh or chilled"),]
+codes.sp <- subset(codes.sp, CPC_Class_En!="Other crustaceans, live, fresh or chilled")
 
-head(codes.sp)
-
-#Restrict FAO data to the animals we care about
-fao.sp <- fao[which(fao$SPECIES.ALPHA_3_CODE %in% codes.sp$X3A_Code),]
+#Restrict FAO data to the animals we care about for this analysis
+fao.sp <- subset(fao, SPECIES.ALPHA_3_CODE %in% codes.sp$X3A_Code)
 
 #Remove rows from FAO data with no catch
-fao.sp <- fao.sp[-which(fao.sp$VALUE==0),]
+fao.sp <- subset(fao.sp, VALUE!=0)
 
-#Create new columns to match variables
-fao.sp$Scientific_Name <- NA #Scientific species name
-fao.sp$Name_En <- NA #English common species name
-fao.sp$Clade <- NA #Shrimp group
-fao.sp$country <- NA #Country
-fao.sp$Continent_Group_En <- NA #Continent
-fao.sp$GeoRegion_Group_En <- NA #Region
-fao.sp$EcoClass_Group_En <- NA #Economic development status
-fao.sp$GEMW_g_Lower <- NA #Estimated mean weight lower
-fao.sp$GEMW_g_Upper <- NA #Estimated mean weight upper
-fao.sp$GEMW_g_Midpoint <- NA #Estimated mean weight midpoint
+#Restrict our data to 2022 catch
+fao.sp.2022 <- fao.sp[which(fao.sp$PERIOD==2022),]
 
-#Restrict our data to 2020 catch
-fao.sp.2020 <- fao.sp[which(fao.sp$PERIOD==2020),]
+#Match our data with the info from the codes.sp data frame
+#and countries data frame
+fao.sp.2022 <- merge(fao.sp.2022,codes.sp,
+                     by.x="SPECIES.ALPHA_3_CODE",by.y="X3A_Code",
+                     all.x=T,all.y=F)
+fao.sp.2022 <- merge(fao.sp.2022,countries,
+                     by.x="COUNTRY.UN_CODE",by.y="UN_Code",
+                     all.x=T,all.y=F)
 
-
-#Run a loop to match those variables and store them in the data
-for (i in c(1:nrow(fao.sp.2020))){
-  code.tmp <- fao.sp.2020[i,]$SPECIES.ALPHA_3_CODE 
-  row.tmp <- codes.sp[codes.sp$X3A_Code==code.tmp,] #Species code
-  fao.sp.2020[i,]$Scientific_Name <- row.tmp$Scientific_Name #Scientific name
-  fao.sp.2020[i,]$Name_En <- row.tmp$Name_En #English name
-  
-  #Country
-  country.tmp <- fao.sp.2020[i,]$COUNTRY.UN_CODE
-  country.row.tmp <- countries[countries$UN_Code==country.tmp,]
-  
-  fao.sp.2020[i,]$country <- country.row.tmp$Name_En #Country name
-  fao.sp.2020[i,]$Continent_Group_En <- country.row.tmp$Continent_Group_En #Continent
-  fao.sp.2020[i,]$GeoRegion_Group_En <- country.row.tmp$GeoRegion_Group_En #Region
-  fao.sp.2020[i,]$EcoClass_Group_En <- country.row.tmp$EcoClass_Group_En #Economic development status
-}
+# Rename the country names, often aggregating and shortening,
+# to commensurate with the map data below
+fao.sp.2022$country <- fao.sp.2022$Name_En.y
+fao.sp.2022[which(fao.sp.2022$country=="Brunei Darussalam"),]$country <- "Brunei"
+fao.sp.2022[which(fao.sp.2022$country=="Iran (Islamic Republic of)"),]$country <- "Iran"
+fao.sp.2022[which(fao.sp.2022$country=="Republic of Korea"),]$country <- "South Korea"
+fao.sp.2022[which(fao.sp.2022$country=="Netherlands (Kingdom of the)"),]$country <- "Netherlands"
+fao.sp.2022[which(fao.sp.2022$country=="Russian Federation"),]$country <- "Russia"
+fao.sp.2022[which(fao.sp.2022$country=="Taiwan Province of China"),]$country <- "Taiwan"
+fao.sp.2022[which(fao.sp.2022$country=="United Republic of Tanzania"),]$country <- "Tanzania"
+fao.sp.2022[which(fao.sp.2022$country=="Türkiye"),]$country <- "Turkey"
+fao.sp.2022[which(fao.sp.2022$country=="United Kingdom of Great Britain and Northern Ireland"),]$country <- "UK"
+fao.sp.2022[which(fao.sp.2022$country=="United States of America"),]$country <- "USA"
+fao.sp.2022[which(fao.sp.2022$country=="Venezuela (Bolivarian Republic of)"),]$country <- "Venezuela"
+fao.sp.2022[which(fao.sp.2022$country=="Viet Nam"),]$country <- "Vietnam"
+fao.sp.2022[which(fao.sp.2022$country=="Côte d'Ivoire"),]$country <- "Ivory Coast"
+fao.sp.2022[which(fao.sp.2022$country=="Trinidad and Tobago"),]$country <- "Trinidad"
+fao.sp.2022[which(fao.sp.2022$country=="Congo"),]$country <- "Republic of Congo"
+fao.sp.2022[which(fao.sp.2022$country=="China, Macao SAR"),]$country <- "China"
+fao.sp.2022[which(fao.sp.2022$country=="China, Hong Kong SAR"),]$country <- "China"
 
 #Make a new row specifying where we need to use a larger group name
 #rather than a species name
 #these are cases where Rethink didn't estimate a mean weight for
 #a particular species
-fao.sp.2020$Scientific_Name_Match <- fao.sp.2020$Scientific_Name
-fao.sp.2020[which(fao.sp.2020$Scientific_Name=="Atypopenaeus formosus"),"Scientific_Name_Match"] <- "Penaeidae"
-fao.sp.2020[which(fao.sp.2020$Scientific_Name=="Penaeus marginatus"),"Scientific_Name_Match"] <- "Penaeus spp"
-fao.sp.2020[which(fao.sp.2020$Scientific_Name=="Metapenaeus affinis"),"Scientific_Name_Match"] <- "Metapenaeus spp"
-fao.sp.2020[which(fao.sp.2020$Scientific_Name=="Pandalus spp, Pandalopsis spp"),"Scientific_Name_Match"] <- "Pandalus spp"
-fao.sp.2020[which(fao.sp.2020$Scientific_Name=="Parapenaeopsis sculptilis"),"Scientific_Name_Match"] <- "Parapenaeopsis spp"
-fao.sp.2020[which(fao.sp.2020$Scientific_Name=="Parapenaeopsis tenella"),"Scientific_Name_Match"] <- "Parapenaeopsis spp"
+fao.sp.2022$Scientific_Name_Match <- fao.sp.2022$Scientific_Name
+fao.sp.2022[which(fao.sp.2022$Scientific_Name=="Atypopenaeus formosus"),"Scientific_Name_Match"] <- "Penaeidae"
+fao.sp.2022[which(fao.sp.2022$Scientific_Name=="Penaeus marginatus"),"Scientific_Name_Match"] <- "Penaeus spp"
+fao.sp.2022[which(fao.sp.2022$Scientific_Name=="Metapenaeus affinis"),"Scientific_Name_Match"] <- "Metapenaeus spp"
+fao.sp.2022[which(fao.sp.2022$Scientific_Name=="Pandalus spp, Pandalopsis spp"),"Scientific_Name_Match"] <- "Pandalus spp"
+fao.sp.2022[which(fao.sp.2022$Scientific_Name=="Parapenaeopsis sculptilis"),"Scientific_Name_Match"] <- "Parapenaeopsis spp"
+fao.sp.2022[which(fao.sp.2022$Scientific_Name=="Parapenaeopsis tenella"),"Scientific_Name_Match"] <- "Parapenaeopsis spp"
 
-for (i in c(1:nrow(fao.sp.2020))){
-  #Rethink's estimated mean weights
-  species.tmp <- fao.sp.2020[i,]$Scientific_Name_Match
-  rp.row.tmp <- rp[rp$Species==species.tmp,]
-  fao.sp.2020[i,]$Clade <- rp.row.tmp$Clade
-  fao.sp.2020[i,]$GEMW_g_Lower <- rp.row.tmp$GEMW_g_Lower
-  fao.sp.2020[i,]$GEMW_g_Upper <- rp.row.tmp$GEMW_g_Upper
-  fao.sp.2020[i,]$GEMW_g_Midpoint <- rp.row.tmp$GEMW_g_Midpoint
-}
-
-head(fao.sp.2020)
-
+# Merge with Rethink's weight data
+fao.sp.2022 <- merge(fao.sp.2022,rp,
+                     by.x="Scientific_Name_Match",by.y="Species",
+                     all.x=T,all.y=F)
 
 #Calculate numbers of individuals
 #Catch in grams
-fao.sp.2020$VALUE_g <- fao.sp.2020$VALUE*10^6
+fao.sp.2022$VALUE_g <- fao.sp.2022$VALUE*10^6
 
-fao.sp.2020$Individuals_Lower <- fao.sp.2020$VALUE_g/fao.sp.2020$GEMW_g_Upper
-fao.sp.2020$Individuals_Upper <- fao.sp.2020$VALUE_g/fao.sp.2020$GEMW_g_Lower
-fao.sp.2020$Individuals_Midpoint <- rowMeans(fao.sp.2020[,c("Individuals_Lower","Individuals_Upper")])
+fao.sp.2022$Individuals_Lower <- fao.sp.2022$VALUE_g/fao.sp.2022$GEMW_g_Upper
+fao.sp.2022$Individuals_Upper <- fao.sp.2022$VALUE_g/fao.sp.2022$GEMW_g_Lower
+fao.sp.2022$Individuals_Midpoint <- rowMeans(fao.sp.2022[,c("Individuals_Lower","Individuals_Upper")])
 
 #Save as CSV
-#write.csv(fao.sp.2020,"fao_2020_prawn_catch_data_with_estimated_individuals.csv")
+#write.csv(fao.sp.2022,"fao_2022_prawn_catch_data_with_estimated_individuals.csv")
 
 #Now, the fun stuff
 
 #Aggregate and graph by various sets of variables
 
 #Catch ~ clade
-agg1 <- aggregate(Individuals_Midpoint~Clade,FUN=sum,data=fao.sp.2020)
-agg1$Individuals_Lower <- aggregate(Individuals_Lower~Clade,FUN=sum,data=fao.sp.2020)$Individuals_Lower
-agg1$Individuals_Upper <- aggregate(Individuals_Upper~Clade,FUN=sum,data=fao.sp.2020)$Individuals_Upper
+agg1 <- aggregate(Individuals_Midpoint~Clade,FUN=sum,data=fao.sp.2022)
+agg1$Individuals_Lower <- aggregate(Individuals_Lower~Clade,FUN=sum,data=fao.sp.2022)$Individuals_Lower
+agg1$Individuals_Upper <- aggregate(Individuals_Upper~Clade,FUN=sum,data=fao.sp.2022)$Individuals_Upper
 g_agg1 <- ggplot(aes(x=Clade,y=Individuals_Midpoint,colour=Clade),data=agg1) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper,colour=Clade),width=0.5) +
-  scale_y_continuous(trans='log10', limits=c(1e10,1e14)) +
+  scale_y_continuous(trans='log10', limits=c(1e10,1e15)) +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5),
         legend.position = "none") +
@@ -156,13 +145,13 @@ g_agg1
 ggsave("Graphs/g_agg1.png",g_agg1,width=5,height=4)
 
 #catch ~ continent
-agg2 <- aggregate(Individuals_Midpoint~Continent_Group_En,FUN=sum,data=fao.sp.2020)
-agg2$Individuals_Lower <- aggregate(Individuals_Lower~Continent_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Lower
-agg2$Individuals_Upper <- aggregate(Individuals_Upper~Continent_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Upper
+agg2 <- aggregate(Individuals_Midpoint~Continent_Group_En,FUN=sum,data=fao.sp.2022)
+agg2$Individuals_Lower <- aggregate(Individuals_Lower~Continent_Group_En,FUN=sum,data=fao.sp.2022)$Individuals_Lower
+agg2$Individuals_Upper <- aggregate(Individuals_Upper~Continent_Group_En,FUN=sum,data=fao.sp.2022)$Individuals_Upper
 g_agg2 <- ggplot(aes(x=reorder(Continent_Group_En,Individuals_Midpoint),y=Individuals_Midpoint),data=agg2) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper),width=0.5) +
-  scale_y_continuous(trans='log10', limits=c(1e8,1e14),breaks=c(1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
+  scale_y_continuous(trans='log10', limits=c(1e8,1e15),breaks=c(1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
   #facet_grid(rows=vars(Clade),scales="free") +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5)) +
@@ -171,9 +160,9 @@ g_agg2
 ggsave("Graphs/g_agg2.png",g_agg2,width=5,height=4)
 
 #catch ~ region
-agg3 <- aggregate(Individuals_Midpoint~GeoRegion_Group_En,FUN=sum,data=fao.sp.2020)
-agg3$Individuals_Lower <- aggregate(Individuals_Lower~GeoRegion_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Lower
-agg3$Individuals_Upper <- aggregate(Individuals_Upper~GeoRegion_Group_En,FUN=sum,data=fao.sp.2020)$Individuals_Upper
+agg3 <- aggregate(Individuals_Midpoint~GeoRegion_Group_En,FUN=sum,data=fao.sp.2022)
+agg3$Individuals_Lower <- aggregate(Individuals_Lower~GeoRegion_Group_En,FUN=sum,data=fao.sp.2022)$Individuals_Lower
+agg3$Individuals_Upper <- aggregate(Individuals_Upper~GeoRegion_Group_En,FUN=sum,data=fao.sp.2022)$Individuals_Upper
 g_agg3 <- ggplot(aes(x=reorder(GeoRegion_Group_En,Individuals_Midpoint),y=Individuals_Midpoint),data=agg3) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper),width=0.5) +
@@ -186,9 +175,9 @@ g_agg3
 ggsave("Graphs/g_agg3.png",g_agg3,width=5,height=8)
 
 #catch ~ country (bar graph)
-agg4 <- aggregate(Individuals_Midpoint~country,FUN=sum,data=fao.sp.2020)
-agg4$Individuals_Lower <- aggregate(Individuals_Lower~country,FUN=sum,data=fao.sp.2020)$Individuals_Lower
-agg4$Individuals_Upper <- aggregate(Individuals_Upper~country,FUN=sum,data=fao.sp.2020)$Individuals_Upper
+agg4 <- aggregate(Individuals_Midpoint~country,FUN=sum,data=fao.sp.2022)
+agg4$Individuals_Lower <- aggregate(Individuals_Lower~country,FUN=sum,data=fao.sp.2022)$Individuals_Lower
+agg4$Individuals_Upper <- aggregate(Individuals_Upper~country,FUN=sum,data=fao.sp.2022)$Individuals_Upper
 g_agg4 <- ggplot(aes(x=reorder(country,Individuals_Midpoint),y=Individuals_Midpoint),data=agg4) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper),width=0.5) +
@@ -202,13 +191,13 @@ g_agg4
 ggsave("Graphs/g_agg4.png",g_agg4,width=6,height=10)
 
 #catch ~ continent + clade
-agg5 <- aggregate(Individuals_Midpoint~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2020)
-agg5$Individuals_Lower <- aggregate(Individuals_Lower~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Lower
-agg5$Individuals_Upper <- aggregate(Individuals_Upper~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Upper
+agg5 <- aggregate(Individuals_Midpoint~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2022)
+agg5$Individuals_Lower <- aggregate(Individuals_Lower~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2022)$Individuals_Lower
+agg5$Individuals_Upper <- aggregate(Individuals_Upper~Continent_Group_En+Clade,FUN=sum,data=fao.sp.2022)$Individuals_Upper
 g_agg5 <- ggplot(aes(x=reorder(Continent_Group_En,Individuals_Midpoint),y=Individuals_Midpoint,colour=Clade),data=agg5) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper,colour=Clade),width=0.5) +
-  scale_y_continuous(trans='log10', limits=c(1e5,1e14), breaks=c(1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
+  scale_y_continuous(trans='log10', limits=c(1e5,1e15), breaks=c(1e5,1e6,1e7,1e8,1e9,1e10,1e11,1e12,1e13,1e14)) +
   facet_grid(rows=vars(Clade)) +
   xlab(NULL) + ylab("Individual shrimp caught (estimated)") +
   theme(plot.title = element_text(hjust = 0.5),plot.subtitle = element_text(hjust = 0.5)) +
@@ -217,9 +206,9 @@ g_agg5
 ggsave("Graphs/g_agg5.png",g_agg5,width=6,height=6)
 
 #catch ~ country + clade
-agg6 <- aggregate(Individuals_Midpoint~country+Clade,FUN=sum,data=fao.sp.2020)
-agg6$Individuals_Lower <- aggregate(Individuals_Lower~country+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Lower
-agg6$Individuals_Upper <- aggregate(Individuals_Upper~country+Clade,FUN=sum,data=fao.sp.2020)$Individuals_Upper
+agg6 <- aggregate(Individuals_Midpoint~country+Clade,FUN=sum,data=fao.sp.2022)
+agg6$Individuals_Lower <- aggregate(Individuals_Lower~country+Clade,FUN=sum,data=fao.sp.2022)$Individuals_Lower
+agg6$Individuals_Upper <- aggregate(Individuals_Upper~country+Clade,FUN=sum,data=fao.sp.2022)$Individuals_Upper
 g_agg6 <- ggplot(aes(x=reorder(country,Individuals_Midpoint),y=Individuals_Midpoint,colour=Clade),data=agg6) +
   geom_point(size=2) +
   geom_errorbar(aes(ymin=Individuals_Lower,ymax=Individuals_Upper,colour=Clade),width=0.5) +
@@ -240,68 +229,29 @@ world$Individuals_Midpoint_Penaeid <- NA
 world$Individuals_Midpoint_Sergestid <- NA
 head(world)
 
-#sorry for this ugly code
-agg4$country_match <- agg4$country
-agg4[which(agg4$country=="Brunei Darussalam"),]$country_match <- "Brunei"
-agg4[which(agg4$country=="Iran (Islamic Rep. of)"),]$country_match <- "Iran"
-agg4[which(agg4$country=="Korea, Republic of"),]$country_match <- "South Korea"
-agg4[which(agg4$country=="Netherlands (Kingdom of the)"),]$country_match <- "Netherlands"
-agg4[which(agg4$country=="Russian Federation"),]$country_match <- "Russia"
-agg4[which(agg4$country=="Taiwan Province of China"),]$country_match <- "Taiwan"
-agg4[which(agg4$country=="Tanzania, United Rep. of"),]$country_match <- "Tanzania"
-agg4[which(agg4$country=="Türkiye"),]$country_match <- "Turkey"
-agg4[which(agg4$country=="United Kingdom"),]$country_match <- "UK"
-agg4[which(agg4$country=="United States of America"),]$country_match <- "USA"
-agg4[which(agg4$country=="Venezuela (Boliv Rep of)"),]$country_match <- "Venezuela"
-agg4[which(agg4$country=="Viet Nam"),]$country_match <- "Vietnam"
-agg4[which(agg4$country=="Côte d'Ivoire"),]$country_match <- "Ivory Coast"
-
-agg6$country_match <- agg6$country
-agg6[which(agg6$country=="Brunei Darussalam"),]$country_match <- "Brunei"
-agg6[which(agg6$country=="Iran (Islamic Rep. of)"),]$country_match <- "Iran"
-agg6[which(agg6$country=="Korea, Republic of"),]$country_match <- "South Korea"
-agg6[which(agg6$country=="Netherlands (Kingdom of the)"),]$country_match <- "Netherlands"
-agg6[which(agg6$country=="Russian Federation"),]$country_match <- "Russia"
-agg6[which(agg6$country=="Taiwan Province of China"),]$country_match <- "Taiwan"
-agg6[which(agg6$country=="Tanzania, United Rep. of"),]$country_match <- "Tanzania"
-agg6[which(agg6$country=="Türkiye"),]$country_match <- "Turkey"
-agg6[which(agg6$country=="United Kingdom"),]$country_match <- "UK"
-agg6[which(agg6$country=="United States of America"),]$country_match <- "USA"
-agg6[which(agg6$country=="Venezuela (Boliv Rep of)"),]$country_match <- "Venezuela"
-agg6[which(agg6$country=="Viet Nam"),]$country_match <- "Vietnam"
-agg6[which(agg6$country=="Côte d'Ivoire"),]$country_match <- "Ivory Coast"
-
 #So we're only missing these countries:
-agg4[-which(agg4$country_match %in% unique(world$region)),]
+agg4[-which(agg4$country %in% unique(world$region)),]
 
 for (i in c(1:nrow(agg4))){
-  country.tmp <- agg4[i,"country_match"]
-  #print(country.tmp)
-  #print(world[which(world$region==country.tmp),])
+  country.tmp <- agg4[i,"country"]
   try(world[which(world$region==country.tmp),]$Individuals_Midpoint_All <- agg4[i,"Individuals_Midpoint"])
 }
 
 agg6.caridean <- agg6[which(agg6$Clade=="Caridean"),]
 for (i in c(1:nrow(agg6.caridean))){
-  country.tmp <- agg6.caridean[i,"country_match"]
-  #print(country.tmp)
-  #print(world[which(world$region==country.tmp),])
+  country.tmp <- agg6.caridean[i,"country"]
   try(world[which(world$region==country.tmp),]$Individuals_Midpoint_Caridean <- agg6.caridean[i,"Individuals_Midpoint"])
 }
 
 agg6.penaeid <- agg6[which(agg6$Clade=="Penaeid"),]
 for (i in c(1:nrow(agg6.penaeid))){
-  country.tmp <- agg6.penaeid[i,"country_match"]
-  #print(country.tmp)
-  #print(world[which(world$region==country.tmp),])
+  country.tmp <- agg6.penaeid[i,"country"]
   try(world[which(world$region==country.tmp),]$Individuals_Midpoint_Penaeid <- agg6.penaeid[i,"Individuals_Midpoint"])
 }
 
 agg6.sergestid <- agg6[which(agg6$Clade=="Sergestid"),]
 for (i in c(1:nrow(agg6.sergestid))){
-  country.tmp <- agg6.sergestid[i,"country_match"]
-  #print(country.tmp)
-  #print(world[which(world$region==country.tmp),])
+  country.tmp <- agg6.sergestid[i,"country"]
   try(world[which(world$region==country.tmp),]$Individuals_Midpoint_Sergestid <- agg6.sergestid[i,"Individuals_Midpoint"])
 }
 
@@ -348,7 +298,7 @@ ggsave("Graphs/g_map_sergestid.png",g_map_sergestid,width=10,height=8)
 #Weight total; percent of global catch; by clade
 #Species caught by individuals and weight (and percent of catch for that country)
 
-agg7 <- aggregate(VALUE~country,FUN=sum,data=fao.sp.2020)
+agg7 <- aggregate(VALUE~country,FUN=sum,data=fao.sp.2022)
 
 global.individuals <- sum(agg4$Individuals_Midpoint)
 global.individuals.penaeid <- sum(agg6[which(agg6$Clade=="Penaeid"),]$Individuals_Midpoint)
@@ -421,15 +371,15 @@ country.df1 <- data.frame("Labels"=c("Weight (t)","Individuals","Individuals (Pe
 country.df1$Percent_of_World <- paste(country.df1$Percent_of_World,"%",sep=" ")
 names(country.df1)[1] <- " "
 
-country.df2 <- aggregate(Individuals_Midpoint~Scientific_Name,FUN=sum,data=fao.sp.2020[fao.sp.2020$country==country.tmp,])
+country.df2 <- aggregate(Individuals_Midpoint~Scientific_Name,FUN=sum,data=fao.sp.2022[fao.sp.2022$country==country.tmp,])
 country.df2$Individuals_Percent_of_Country <- round(100*country.df2$Individuals_Midpoint/sum(country.df2$Individuals_Midpoint),2)
 country.df2 <- country.df2[order(-country.df2$Individuals_Percent_of_Country),]
 country.df2$Individuals_Percent_of_Country <- paste(country.df2$Individuals_Percent_of_Country,"%",sep=" ")
 country.df2$Individuals_Midpoint <- format(country.df2$Individuals_Midpoint,format="e",digits=2)
 country.df2
 
-table.names.top <- c(" ","Catch in 2020","Percent of World")
-table.names.middle <- c("Species","Individuals Caught in 2020 (Midpoint)","Percent of Country")
+table.names.top <- c(" ","Catch in 2022","Percent of World")
+table.names.middle <- c("Species","Individuals Caught in 2022 (Midpoint)","Percent of Country")
 names(country.df1) <- table.names.top
 names(country.df2) <- table.names.top
 table.combo <- rbind(country.df1,rep(" ",3),table.names.middle,country.df2)
@@ -444,7 +394,7 @@ swanky_table <- tab_source_note(swanky_table, html('<p style="font-size:10px">Br
                                 given the confidence range of the species-specific estimated mean weights as published
                                 by Rethink Priorities (2023). For the second half of the table, species-specific
                                 estimates are only given as the range midpoint (without the range upper and lower bounds) for visual simplicity.
-                                NA indicates that no shrimp of that clade were recorded in the catch data for 2020 in that country.</p>'))
+                                NA indicates that no shrimp of that clade were recorded in the catch data for 2022 in that country.</p>'))
 
 filename1 <- paste("Country Results/",country.tmp,".html",sep="")
 gtsave(swanky_table, filename = filename1)
@@ -483,7 +433,7 @@ overarching.table.countries$Catch_by_Weight <- format(round(overarching.table.co
                                                       big.mark = ",", scientific=FALSE)
 
 
-overarching.table <- overarching.table.countries[c(1:25),c("country_match",
+overarching.table <- overarching.table.countries[c(1:30),c("country",
                                                            "Catch_by_Weight","Weight_Percent",
                                                            "Catch_by_Number","Individuals_Percent"
                                                     )]
@@ -524,6 +474,7 @@ for (i in c(1:length(trade.countries))){
 trade.agg.bycountry.order <- trade.agg.bycountry[
   order(trade.agg.bycountry$Reporting.country.Name.En,-trade.agg.bycountry$X2021_percent),]
 
+trade.agg.bycountry.order
 
 write.csv(trade.agg.bycountry.order,"trade_aggregated_bycountry.csv")
 write.csv(trade.agg,"trade_aggregated.csv")
